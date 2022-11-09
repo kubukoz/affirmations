@@ -11,27 +11,27 @@ import sttp.tapir.ztapir.ZServerEndpoint
 import zio.Task
 import zio.ZIO
 
-class Endpoints(library: AffirmationsLibrary):
+class Endpoints:
   import Endpoints.*
 
-  val helloServerEndpoint: ZServerEndpoint[Any, Any] = pingEndpoint.serverLogicSuccess(_ => ZIO.succeed("pong"))
+  val helloServerEndpoint: ZServerEndpoint[AffirmationsLibrary, Any] = pingEndpoint.serverLogicSuccess(_ => ZIO.succeed("pong"))
 
-  val getAffirmationServerEndpoint: ZServerEndpoint[Any, Any] =
-    getAffirmationEndpoint.serverLogicSuccess(id => library.get(id))
+  val getAffirmationServerEndpoint: ZServerEndpoint[AffirmationsLibrary, Any] =
+    getAffirmationEndpoint.serverLogicSuccess(id => AffirmationsLibrary.library.flatMap(_.get(id)))
 
-  val affirmationsListingServerEndpoint: ZServerEndpoint[Any, Any] =
-    affirmationsListingEndpoint.serverLogicSuccess(pagingO => library.getAll(pagingO, None))
+  val affirmationsListingServerEndpoint: ZServerEndpoint[AffirmationsLibrary, Any] =
+    affirmationsListingEndpoint.serverLogicSuccess(pagingO => AffirmationsLibrary.getAll(pagingO, None))
 
-  val createAffirmationServerEndpoint: ZServerEndpoint[Any, Any] =
-    createAffirmationEndpoint.serverLogicSuccess(id => library.create(id))
+  val createAffirmationServerEndpoint: ZServerEndpoint[AffirmationsLibrary, Any] =
+    createAffirmationEndpoint.serverLogicSuccess(id => AffirmationsLibrary.library.flatMap(_.create(id)))
 
-  val updateAffirmationServerEndpoint: ZServerEndpoint[Any, Any] =
-    updateAffirmationEndpoint.serverLogicSuccess(id => library.update(id))
+  val updateAffirmationServerEndpoint: ZServerEndpoint[AffirmationsLibrary, Any] =
+    updateAffirmationEndpoint.serverLogicSuccess(id => AffirmationsLibrary.library.flatMap(_.update(id)))
 
-  val deleteAffirmationServerEndpoint: ZServerEndpoint[Any, Any] =
-    deleteAffirmationEndpoint.serverLogicSuccess(id => library.delete(id))
+  val deleteAffirmationServerEndpoint: ZServerEndpoint[AffirmationsLibrary, Any] =
+    deleteAffirmationEndpoint.serverLogicSuccess(id => AffirmationsLibrary.library.flatMap(_.delete(id)))
 
-  val apiEndpoints: List[ZServerEndpoint[Any, Any]] = List(
+  val apiEndpoints: List[ZServerEndpoint[AffirmationsLibrary, Any]] = List(
     helloServerEndpoint,
     createAffirmationServerEndpoint,
     getAffirmationServerEndpoint,
@@ -40,14 +40,16 @@ class Endpoints(library: AffirmationsLibrary):
     affirmationsListingServerEndpoint
   )
 
-  // FIXME: investigate why ZServerEndpoint[AffirmationsLibrary, Any] can't be matched to _ nor ?. Forced to workaround; BUG?
-  val docEndpoints: List[ZServerEndpoint[Any, Any]] = SwaggerInterpreter()
-    .fromServerEndpoints[Task](apiEndpoints, "affirmations", "1.0.0")
+  val docEndpoints: List[ZServerEndpoint[AffirmationsLibrary, Any]] = SwaggerInterpreter()
+    .fromServerEndpoints(apiEndpoints, "affirmations", "1.0.0")
 
-  val prometheusMetrics: PrometheusMetrics[Task] = PrometheusMetrics.default[Task]()
-  val metricsEndpoint: ZServerEndpoint[Any, Any] = prometheusMetrics.metricsEndpoint
+  // tu potrzebne by było włączenie kind-projector zeby dac to jako type lambde
+  type T[+A] = zio.RIO[AffirmationsLibrary, A]
 
-  val all: List[ZServerEndpoint[Any, Any]] = apiEndpoints ++ docEndpoints ++ List(metricsEndpoint)
+  val prometheusMetrics: PrometheusMetrics[T] = PrometheusMetrics.default[T]()
+  val metricsEndpoint: ZServerEndpoint[AffirmationsLibrary, Any] = prometheusMetrics.metricsEndpoint
+
+  val all: List[ZServerEndpoint[AffirmationsLibrary, Any]] = apiEndpoints ++ docEndpoints ++ List(metricsEndpoint)
 
 object Endpoints {
   case class NotFound(what: String)
@@ -70,15 +72,17 @@ object Endpoints {
 
   val getAffirmationEndpoint: Endpoint[Unit, Long, Unit, Affirmation, Any] = endpoint.get
     .in("affirmation")
-    .in(query[Long]("id")
-      .example(9)
+    .in(
+      query[Long]("id")
+        .example(9)
     )
     .out(jsonBody[Affirmation])
 
   val deleteAffirmationEndpoint: Endpoint[Unit, Long, Unit, Boolean, Any] = endpoint.delete
     .in("affirmation")
-    .in(query[Long]("id")
-      .example(738)
+    .in(
+      query[Long]("id")
+        .example(738)
     )
     .out(jsonBody[Boolean])
 

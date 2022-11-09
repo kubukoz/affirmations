@@ -10,10 +10,15 @@ import com.protolight.persistance.InMemoryLibrary
 import io.circe.generic.auto.*
 import sttp.client3.circe.*
 import sttp.tapir.ztapir.RIOMonadError
+import zio.ZEnvironment
+import zio.ZLayer
+import zio.test.Spec
+import zio.test.TestEnvironment
+import zio.Scope
 
 object EndpointsSpec extends ZIOSpecDefault:
   val library = InMemoryLibrary
-  val endpoints = Endpoints(library)
+  val endpoints = Endpoints()
 
   def spec = suite("Endpoints spec")(
     test("return pong message") {

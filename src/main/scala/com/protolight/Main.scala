@@ -15,11 +15,12 @@ object Main extends ZIOAppDefault:
   override def run: ZIO[Any with ZIOAppArgs with Scope, Any, Any] =
 
     def app(library: AffirmationsLibrary): HttpApp[Any, Throwable] = {
-      val endpoints = Endpoints(library)
-      val serverOptions: ZioHttpServerOptions[Any] =
-        ZioHttpServerOptions.customiseInterceptors
+      val endpoints = Endpoints()
+      val serverOptions: ZioHttpServerOptions[AffirmationsLibrary] =
+        ZioHttpServerOptions
+          .customiseInterceptors[AffirmationsLibrary]
           .serverLog(
-            DefaultServerLog[Task](
+            DefaultServerLog[endpoints.T](
               doLogWhenReceived = msg => ZIO.succeed(log.debug(msg)),
               doLogWhenHandled = (msg, error) => ZIO.succeed(error.fold(log.debug(msg))(err => log.debug(msg, err))),
               doLogAllDecodeFailures = (msg, error) => ZIO.succeed(error.fold(log.debug(msg))(err => log.debug(msg, err))),
@@ -30,7 +31,8 @@ object Main extends ZIOAppDefault:
           .metricsInterceptor(endpoints.prometheusMetrics.metricsInterceptor())
           .options
 
-      ZioHttpInterpreter(serverOptions).toHttp(endpoints.all)
+      // moze da sie prosciej ten environment
+      ZioHttpInterpreter(serverOptions).toHttp(endpoints.all).provideSomeEnvironment(_ ++ ZEnvironment(library))
     }
 
     (for
